@@ -22,7 +22,7 @@ yesterday = get_kst_yesterday()
 # --- 화면 상단 타이틀 및 달력 날짜 선택 ---
 st.title("🎬 일별 박스오피스 대시보드")
 
-# 3. 달력(st.date_input)으로 날짜 선택 (오늘 이후 날짜 선택 불가)
+# 3. 달력(st.date_input)으로 날짜 선택 (어제 날짜까지만 선택 가능)
 selected_date = st.date_input(
     "📅 조회할 날짜를 선택하세요 (어제 날짜까지만 선택 가능)",
     value=yesterday,
@@ -35,7 +35,7 @@ display_dt_str = selected_date.strftime("%Y년 %m월 %d일")
 
 st.subheader(f"📌 {display_dt_str} 기준 박스오피스")
 
-# 4. KOBIS API 데이터 호출 함수
+# 4. KOBIS API 데이터 호출 함수 (@st.cache_data로 동일 날짜 결과 1시간 캐싱)
 @st.cache_data(ttl=3600)
 def fetch_box_office(api_key: str, target_date: str):
     url = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
@@ -114,14 +114,14 @@ with col3:
 
 st.divider()
 
-# 9. 관객수 상위 5편 막대그래프 (Altair 사용 - Y축 0 이상 제한 적용)
+# 9. 관객수 상위 5편 막대그래프 (드래그/확대 가능 + 파란색 + Y축 기본 0 설정)
 st.markdown("### 📊 관객수 상위 5개 영화 (순위순)")
 
 top_5_df = df.head(5).copy()
 top_5_df["rank_label"] = top_5_df.apply(lambda row: f"{row['rank']}위. {row['movieNm']}", axis=1)
 
-# 💡 domainMin=0 으로 설정하여 Y축이 0 이하로 내려가지 않도록 고정
-chart = alt.Chart(top_5_df).mark_bar(color="#ff4b4b").encode(
+# 💡 .interactive()로 드래그 및 Zoom 지원 / color를 파란색(#2962FF)으로 설정
+chart = alt.Chart(top_5_df).mark_bar(color="#2962FF").encode(
     x=alt.X("rank_label:N", sort=None, title="영화명", axis=alt.Axis(labelAngle=0)),
     y=alt.Y("audiCnt:Q", title="당일 관객수 (명)", scale=alt.Scale(domainMin=0)),
     tooltip=[
@@ -130,7 +130,7 @@ chart = alt.Chart(top_5_df).mark_bar(color="#ff4b4b").encode(
     ]
 ).properties(
     height=350
-)
+).interactive()
 
 st.altair_chart(chart, use_container_width=True)
 
@@ -194,7 +194,7 @@ display_df["관객수"] = display_df["관객수"].apply(lambda x: f"{x:,}")
 display_df["누적관객"] = display_df["누적관객"].apply(lambda x: f"{x:,}")
 display_df["스크린수"] = display_df["스크린수"].apply(lambda x: f"{x:,}")
 
-# HTML 테이블 방식을 사용하여 헤더 클릭에 따른 순위 뒤섞임 방지 및 '순위' 열 정상 출력
+# HTML 테이블 방식으로 헤더 클릭 정렬 교란 방지 및 '순위' 열 정상 출력
 table_html = display_df.to_html(index=False, justify="center")
 
 css = """
