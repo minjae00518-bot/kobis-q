@@ -97,7 +97,7 @@ elif error_code:
 # 7. 데이터프레임 변환 및 숫자형 데이터 정제
 df = pd.DataFrame(raw_data)
 
-# 문자열로 들어온 정수 데이터들을 숫자로 변환
+# 문자열로 들어온 정수 데이터들을 정수형(int)으로 변환
 numeric_columns = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
@@ -119,22 +119,18 @@ with col3:
 
 st.divider()
 
-# 9. 관객수 상위 5편 막대그래프 (1위~5위 순서대로 표시되도록 라벨 가공)
+# 9. 관객수 상위 5편 막대그래프 (순위순 정렬)
 st.markdown("### 📊 관객수 상위 5개 영화 (순위순)")
 
 top_5_df = df.head(5).copy()
-# 예: '1위. 파묘', '2위. 댓글부대' 형태로 만들어 그래프 축의 순서를 1위~5위로 고정
 top_5_df["rank_label"] = top_5_df.apply(lambda row: f"{row['rank']}위. {row['movieNm']}", axis=1)
 
-# 막대그래프용 데이터프레임 생성
 chart_df = top_5_df[["rank_label", "audiCnt"]].rename(columns={"audiCnt": "당일 관객수"}).set_index("rank_label")
 st.bar_chart(chart_df)
 
 st.divider()
 
 # 10. 순위 증감(rankInten) 및 누적 관객 100만 명 이상 트로피 서식 가공
-
-# 전날 대비 순위 증감 기호 부여 함수
 def format_rank_change(val):
     if val > 0:
         return f"🔺 {val}"
@@ -145,7 +141,6 @@ def format_rank_change(val):
 
 df["rank_change"] = df["rankInten"].apply(format_rank_change)
 
-# 누적관객이 100만 명 이상(>= 1,000,000)인 영화는 영화명 옆에 🏆 붙이기
 def format_movie_name(row):
     name = row["movieNm"]
     if row["audiAcc"] >= 1_000_000:
@@ -157,12 +152,18 @@ df["formatted_movie_nm"] = df.apply(format_movie_name, axis=1)
 # 11. 전체 순위 표(Table) 출력
 st.markdown("### 📋 전체 박스오피스 순위")
 
+# 표에 출력할 데이터 추출 (숫자는 int 데이터 타입 그대로 유지)
 display_df = df[["rank", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
 display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
-# 천 단위 쉼표 서식 적용
-display_df["관객수"] = display_df["관객수"].apply(lambda x: f"{x:,}")
-display_df["누적관객"] = display_df["누적관객"].apply(lambda x: f"{x:,}")
-display_df["스크린수"] = display_df["스크린수"].apply(lambda x: f"{x:,}")
-
-st.dataframe(display_df, use_container_width=True, hide_index=True)
+# column_config를 사용해 데이터는 '숫자'로 유지하면서 표 화면에만 천 단위 쉼표 서식을 적용
+st.dataframe(
+    display_df,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "관객수": st.column_config.NumberColumn("관객수"),
+        "누적관객": st.column_config.NumberColumn("누적관객"),
+        "스크린수": st.column_config.NumberColumn("스크린수"),
+    }
+)
