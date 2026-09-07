@@ -14,6 +14,7 @@ st.set_page_config(
 def get_kst_yesterday():
     kst = timezone(timedelta(hours=9))
     now_kst = datetime.now(kst)
+    # 오늘 데이터는 아직 집계 전이므로 가장 최근 가능 날짜는 어제
     return (now_kst - timedelta(days=1)).date()
 
 # 기준 어제 날짜 구하기
@@ -23,6 +24,7 @@ yesterday = get_kst_yesterday()
 st.title("🎬 일별 박스오피스 대시보드")
 
 # 3. 달력(st.date_input)으로 날짜 선택
+# max_value를 어제 날짜로 지정하여 오늘 이후 날짜 선택 방지
 selected_date = st.date_input(
     "📅 조회할 날짜를 선택하세요 (어제 날짜까지만 선택 가능)",
     value=yesterday,
@@ -52,7 +54,7 @@ def fetch_box_office(api_key: str, target_date: str):
     except Exception as e:
         return None, f"네트워크 요청 중 오류가 발생했습니다: {e}"
 
-    # KOBIS API 오류 예외 처리
+    # KOBIS API 오류 예외 처리 (인증키 오류 등)
     if "faultInfo" in data:
         msg = data["faultInfo"].get("message", "인증키 또는 요청 파라미터가 유효하지 않습니다.")
         return None, f"API 서비스 오류: {msg}"
@@ -60,6 +62,7 @@ def fetch_box_office(api_key: str, target_date: str):
     box_office_result = data.get("boxOfficeResult", {})
     daily_list = box_office_result.get("dailyBoxOfficeList", [])
 
+    # 선택한 날짜의 영화 목록이 비어있는 경우
     if not daily_list:
         return None, "empty"
 
@@ -81,6 +84,7 @@ api_key = st.secrets["KOBIS_KEY"]
 # 6. 선택한 날짜의 API 데이터 호출 실행
 raw_data, error_code = fetch_box_office(api_key, target_dt_str)
 
+# 영화 목록이 비어있거나 에러가 난 경우 안내
 if error_code == "empty":
     st.warning("⚠️ 그날은 아직 집계 전입니다.")
     st.stop()
@@ -96,12 +100,12 @@ elif error_code:
 # 7. 데이터프레임 변환 및 숫자형 데이터 정제
 df = pd.DataFrame(raw_data)
 
-# 문자열로 들어온 정수 데이터들을 정수형(int)으로 변환
+# 문자열로 들어온 정수 데이터들을 숫자로 변환
 numeric_columns = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
-# 기본 순위 정렬 (1위~10위)
+# 기본 순위 정렬 (1위 ~ 10위)
 df = df.sort_values("rank").reset_index(drop=True)
 
 # 8. 1위 영화 지표 카드 3장 출력
@@ -118,7 +122,7 @@ with col3:
 
 st.divider()
 
-# 9. 관객수 상위 5편 막대그래프 (순위순 정렬)
+# 9. 관객수 상위 5편 막대그래프 (1위~5위 순서 고정)
 st.markdown("### 📊 관객수 상위 5개 영화 (순위순)")
 
 top_5_df = df.head(5).copy()
@@ -130,6 +134,8 @@ st.bar_chart(chart_df)
 st.divider()
 
 # 10. 순위 증감(rankInten) 및 누적 관객 100만 명 이상 트로피 서식 가공
+
+# 전날 대비 순위 증감 기호 부여 함수 (양수: 빨간 위 화살표 / 음수: 파란 아래 화살표)
 def format_rank_change(val):
     if val > 0:
         return f"🔺 {val}"
@@ -140,6 +146,7 @@ def format_rank_change(val):
 
 df["rank_change"] = df["rankInten"].apply(format_rank_change)
 
+# 누적관객이 100만 명 이상(>= 1,000,000)인 영화는 영화명 옆에 🏆 붙이기
 def format_movie_name(row):
     name = row["movieNm"]
     if row["audiAcc"] >= 1_000_000:
@@ -166,6 +173,7 @@ with col_sort2:
         horizontal=True
     )
 
+# 선택한 옵션에 따라 데이터 정렬 수행
 target_col_map = {
     "당일 관객수": "audiCnt",
     "누적 관객수": "audiAcc",
@@ -174,10 +182,9 @@ target_col_map = {
 selected_col = target_col_map[sort_target]
 is_ascending = (sort_order == "적은 순 (10위부터)")
 
-# 데이터 정렬 진행
 df_sorted = df.sort_values(by=selected_col, ascending=is_ascending).reset_index(drop=True)
 
-# 💡 '1위', '2위' 형태의 '순위' 열을 명시적으로 생성
+# 정렬된 순서에 맞춰 '1위', '2위' 형태의 순위 표시열 재생성
 df_sorted["rank_display"] = [f"{i}위" for i in range(1, len(df_sorted) + 1)]
 
 display_df = df_sorted[["rank_display", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
@@ -188,10 +195,9 @@ display_df["관객수"] = display_df["관객수"].apply(lambda x: f"{x:,}")
 display_df["누적관객"] = display_df["누적관객"].apply(lambda x: f"{x:,}")
 display_df["스크린수"] = display_df["스크린수"].apply(lambda x: f"{x:,}")
 
-# 💡 index=False로 HTML 변환하여 표 헤더 클릭 클릭에 의한 정렬 변경 방지 및 '순위' 열 표시
+# HTML 테이블 방식으로 출력하여 헤더 클릭에 의한 순위 흐트러짐 방지 및 '순위' 열 표시
 table_html = display_df.to_html(index=False, justify="center")
 
-# 깔끔한 CSS 디자인 적용
 css = """
 <style>
 .stTableContainer table {
