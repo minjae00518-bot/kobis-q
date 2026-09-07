@@ -114,23 +114,23 @@ with col3:
 
 st.divider()
 
-# 9. 관객수 상위 5편 막대그래프 (드래그/확대 가능 + 파란색 + Y축 기본 0 설정)
+# 9. 관객수 상위 5편 막대그래프
 st.markdown("### 📊 관객수 상위 5개 영화 (순위순)")
 
 top_5_df = df.head(5).copy()
 top_5_df["rank_label"] = top_5_df.apply(lambda row: f"{row['rank']}위. {row['movieNm']}", axis=1)
 
-# 💡 .interactive()로 드래그 및 Zoom 지원 / color를 파란색(#2962FF)으로 설정
-chart = alt.Chart(top_5_df).mark_bar(color="#2962FF").encode(
+# 💡 bind_y=False 로 Y축 드래그/확대를 막고 X축 인터랙션만 허용 + domainMin=0 및 clamp=True로 0 이하 표시 완전 차단
+chart = alt.Chart(top_5_df).mark_bar(color="#2962FF", clip=True).encode(
     x=alt.X("rank_label:N", sort=None, title="영화명", axis=alt.Axis(labelAngle=0)),
-    y=alt.Y("audiCnt:Q", title="당일 관객수 (명)", scale=alt.Scale(domainMin=0)),
+    y=alt.Y("audiCnt:Q", title="당일 관객수 (명)", scale=alt.Scale(domainMin=0, clamp=True)),
     tooltip=[
         alt.Tooltip("rank_label:N", title="순위 및 영화명"),
         alt.Tooltip("audiCnt:Q", title="당일 관객수", format=","),
     ]
 ).properties(
     height=350
-).interactive()
+).interactive(bind_y=False)
 
 st.altair_chart(chart, use_container_width=True)
 
