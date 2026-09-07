@@ -14,7 +14,6 @@ st.set_page_config(
 def get_kst_yesterday():
     kst = timezone(timedelta(hours=9))
     now_kst = datetime.now(kst)
-    # 오늘 데이터는 아직 집계 전이므로 가장 최근 가능 날짜는 어제
     return (now_kst - timedelta(days=1)).date()
 
 # 기준 어제 날짜 구하기
@@ -102,7 +101,7 @@ numeric_columns = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
-# 순위 기준 정렬 (1위 ~ 10위)
+# 기본 순위 정렬
 df = df.sort_values("rank").reset_index(drop=True)
 
 # 8. 1위 영화 지표 카드 3장 출력
@@ -149,14 +148,30 @@ def format_movie_name(row):
 
 df["formatted_movie_nm"] = df.apply(format_movie_name, axis=1)
 
-# 11. 전체 순위 표(Table) 출력
+# 11. 전체 순위 표(Table) 출력 및 정렬 옵션 설정
 st.markdown("### 📋 전체 박스오피스 순위")
 
-# 표에 출력할 데이터 추출 (숫자는 int 데이터 타입 그대로 유지)
-display_df = df[["rank", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
+# 당일 관객수 vs 누적 관객수 정렬 기준 선택 버튼
+sort_option = st.radio(
+    "정렬 기준 선택",
+    options=["당일 관객수 기준", "누적 관객수 기준"],
+    horizontal=True
+)
+
+# 선택에 따라 데이터 정렬 및 순위 재매기기
+if sort_option == "누적 관객수 기준":
+    # 누적 관객수 내림차순 정렬 (큰 값부터)
+    df_sorted = df.sort_values(by="audiAcc", ascending=False).reset_index(drop=True)
+else:
+    # 당일 관객수 내림차순 정렬 (기본값)
+    df_sorted = df.sort_values(by="audiCnt", ascending=False).reset_index(drop=True)
+
+# 정렬된 순서에 맞춰 1위부터 순위를 새로 계산하여 할당
+df_sorted["rank"] = range(1, len(df_sorted) + 1)
+
+display_df = df_sorted[["rank", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
 display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
-# column_config를 사용해 데이터는 '숫자'로 유지하면서 표 화면에만 천 단위 쉼표 서식을 적용
 st.dataframe(
     display_df,
     use_container_width=True,
