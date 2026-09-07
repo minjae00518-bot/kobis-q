@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-import altair as alt
+import plotly.express as px
 from datetime import datetime, timedelta, timezone
 
 # 1. 웹 앱 기본 설정 (페이지 제목 및 넓은 레이아웃)
@@ -114,25 +114,46 @@ with col3:
 
 st.divider()
 
-# 9. 관객수 상위 5편 막대그래프
+# 9. 관객수 상위 5편 막대그래프 (드래그 가능 + 파란색 + Y축 0 이하 표시 완전 방지)
 st.markdown("### 📊 관객수 상위 5개 영화 (순위순)")
 
 top_5_df = df.head(5).copy()
 top_5_df["rank_label"] = top_5_df.apply(lambda row: f"{row['rank']}위. {row['movieNm']}", axis=1)
 
-# 💡 bind_y=False 로 Y축 드래그/확대를 막고 X축 인터랙션만 허용 + domainMin=0 및 clamp=True로 0 이하 표시 완전 차단
-chart = alt.Chart(top_5_df).mark_bar(color="#2962FF", clip=True).encode(
-    x=alt.X("rank_label:N", sort=None, title="영화명", axis=alt.Axis(labelAngle=0)),
-    y=alt.Y("audiCnt:Q", title="당일 관객수 (명)", scale=alt.Scale(domainMin=0, clamp=True)),
-    tooltip=[
-        alt.Tooltip("rank_label:N", title="순위 및 영화명"),
-        alt.Tooltip("audiCnt:Q", title="당일 관객수", format=","),
-    ]
-).properties(
-    height=350
-).interactive(bind_y=False)
+# Plotly 막대 차트 생성
+fig = px.bar(
+    top_5_df,
+    x="rank_label",
+    y="audiCnt",
+    text="audiCnt",
+    labels={"rank_label": "영화명", "audiCnt": "당일 관객수"}
+)
 
-st.altair_chart(chart, use_container_width=True)
+# 차트 디자인 설정 (시원한 파란색 `#2962FF` + 툴팁 설정)
+fig.update_traces(
+    marker_color="#2962FF",
+    texttemplate="%{text:,}명",
+    textposition="outside",
+    hovertemplate="<b>%{x}</b><br>당일 관객수: %{y:,}명<extra></extra>"
+)
+
+# Y축 최소값을 0으로 강제 고정 (드래그 이동 시에도 0 이하 음수 방지)
+fig.update_yaxes(
+    minallowed=0,
+    rangemode="tozero",
+    tickformat=","
+)
+
+# 기본 인터랙션 동작을 '드래그/이동(pan)'으로 지정
+fig.update_layout(
+    xaxis_title="",
+    yaxis_title="당일 관객수 (명)",
+    height=400,
+    margin=dict(l=20, r=20, t=30, b=20),
+    dragmode="pan"
+)
+
+st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
