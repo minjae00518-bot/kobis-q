@@ -101,7 +101,7 @@ numeric_columns = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
-# 기본 순위 정렬
+# 당일 관객수 기준 1위~10위 정렬
 df = df.sort_values("rank").reset_index(drop=True)
 
 # 8. 1위 영화 지표 카드 3장 출력
@@ -148,30 +148,44 @@ def format_movie_name(row):
 
 df["formatted_movie_nm"] = df.apply(format_movie_name, axis=1)
 
-# 11. 전체 순위 표(Table) 출력 및 정렬 옵션 설정
+# 11. 전체 순위 표(Table) 출력 및 동적 정렬 설정
 st.markdown("### 📋 전체 박스오피스 순위")
 
-# 당일 관객수 vs 누적 관객수 정렬 기준 선택 버튼
-sort_option = st.radio(
-    "정렬 기준 선택",
-    options=["당일 관객수 기준", "누적 관객수 기준"],
-    horizontal=True
-)
+# 정렬 기준 및 순서 선택 옵션 생성
+col_sort1, col_sort2 = st.columns(2)
 
-# 선택에 따라 데이터 정렬 및 순위 재매기기
-if sort_option == "누적 관객수 기준":
-    # 누적 관객수 내림차순 정렬 (큰 값부터)
-    df_sorted = df.sort_values(by="audiAcc", ascending=False).reset_index(drop=True)
-else:
-    # 당일 관객수 내림차순 정렬 (기본값)
-    df_sorted = df.sort_values(by="audiCnt", ascending=False).reset_index(drop=True)
+with col_sort1:
+    sort_target = st.selectbox(
+        "📊 정렬할 항목 선택",
+        options=["당일 관객수", "누적 관객수", "스크린수"]
+    )
 
-# 정렬된 순서에 맞춰 1위부터 순위를 새로 계산하여 할당
+with col_sort2:
+    sort_order = st.radio(
+        "⬆️⬇️ 정렬 순서 선택",
+        options=["많은 순 (1위부터)", "적은 순 (10위부터)"],
+        horizontal=True
+    )
+
+# 선택한 옵션에 따라 데이터프레임 정렬 수행
+target_col_map = {
+    "당일 관객수": "audiCnt",
+    "누적 관객수": "audiAcc",
+    "스크린수": "scrnCnt"
+}
+selected_col = target_col_map[sort_target]
+is_ascending = (sort_order == "적은 순 (10위부터)")
+
+# 데이터 정렬 진행
+df_sorted = df.sort_values(by=selected_col, ascending=is_ascending).reset_index(drop=True)
+
+# 💡 선택한 기준(누적관객, 스크린수 등)에 맞춰 순위(1위~10위)를 새로 다시 계산해 매김
 df_sorted["rank"] = range(1, len(df_sorted) + 1)
 
 display_df = df_sorted[["rank", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
 display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
+# 표 출력
 st.dataframe(
     display_df,
     use_container_width=True,
