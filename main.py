@@ -148,10 +148,9 @@ def format_movie_name(row):
 
 df["formatted_movie_nm"] = df.apply(format_movie_name, axis=1)
 
-# 11. 전체 순위 표(Table) 출력 및 동적 정렬 설정
+# 11. 전체 순위 표(Table) 출력 및 정렬 컨트롤 설정
 st.markdown("### 📋 전체 박스오피스 순위")
 
-# 정렬 기준 및 순서 선택 옵션 생성
 col_sort1, col_sort2 = st.columns(2)
 
 with col_sort1:
@@ -167,7 +166,7 @@ with col_sort2:
         horizontal=True
     )
 
-# 선택한 옵션에 따라 데이터프레임 정렬 수행
+# 선택한 옵션에 따른 정렬 기준 매핑
 target_col_map = {
     "당일 관객수": "audiCnt",
     "누적 관객수": "audiAcc",
@@ -179,20 +178,16 @@ is_ascending = (sort_order == "적은 순 (10위부터)")
 # 데이터 정렬 진행
 df_sorted = df.sort_values(by=selected_col, ascending=is_ascending).reset_index(drop=True)
 
-# 💡 선택한 기준(누적관객, 스크린수 등)에 맞춰 순위(1위~10위)를 새로 다시 계산해 매김
+# 선택된 기준에 맞춰 1위부터 순위 새로 부여
 df_sorted["rank"] = range(1, len(df_sorted) + 1)
 
 display_df = df_sorted[["rank", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
 display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
-# 표 출력
-st.dataframe(
-    display_df,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "관객수": st.column_config.NumberColumn("관객수"),
-        "누적관객": st.column_config.NumberColumn("누적관객"),
-        "스크린수": st.column_config.NumberColumn("스크린수"),
-    }
-)
+# 천 단위 쉼표 서식 지정
+display_df["관객수"] = display_df["관객수"].apply(lambda x: f"{x:,}")
+display_df["누적관객"] = display_df["누적관객"].apply(lambda x: f"{x:,}")
+display_df["스크린수"] = display_df["스크린수"].apply(lambda x: f"{x:,}")
+
+# 💡 st.table을 사용하면 표 제목 클릭에 따른 임의 정렬이 동작하지 않아 순위가 섞이지 않습니다.
+st.table(display_df.set_index("순위"))
