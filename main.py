@@ -101,7 +101,7 @@ numeric_columns = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_columns:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
-# 당일 관객수 기준 1위~10위 정렬
+# 기본 순위 정렬 (1위~10위)
 df = df.sort_values("rank").reset_index(drop=True)
 
 # 8. 1위 영화 지표 카드 3장 출력
@@ -148,7 +148,7 @@ def format_movie_name(row):
 
 df["formatted_movie_nm"] = df.apply(format_movie_name, axis=1)
 
-# 11. 전체 순위 표(Table) 출력 및 정렬 컨트롤 설정
+# 11. 전체 순위 표(Table) 출력 및 정렬 옵션 설정
 st.markdown("### 📋 전체 박스오피스 순위")
 
 col_sort1, col_sort2 = st.columns(2)
@@ -166,7 +166,6 @@ with col_sort2:
         horizontal=True
     )
 
-# 선택한 옵션에 따른 정렬 기준 매핑
 target_col_map = {
     "당일 관객수": "audiCnt",
     "누적 관객수": "audiAcc",
@@ -178,16 +177,43 @@ is_ascending = (sort_order == "적은 순 (10위부터)")
 # 데이터 정렬 진행
 df_sorted = df.sort_values(by=selected_col, ascending=is_ascending).reset_index(drop=True)
 
-# 선택된 기준에 맞춰 1위부터 순위 새로 부여
-df_sorted["rank"] = range(1, len(df_sorted) + 1)
+# 💡 '1위', '2위' 형태의 '순위' 열을 명시적으로 생성
+df_sorted["rank_display"] = [f"{i}위" for i in range(1, len(df_sorted) + 1)]
 
-display_df = df_sorted[["rank", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
+display_df = df_sorted[["rank_display", "rank_change", "formatted_movie_nm", "openDt", "audiCnt", "audiAcc", "scrnCnt"]].copy()
 display_df.columns = ["순위", "전날 대비", "영화명", "개봉일", "관객수", "누적관객", "스크린수"]
 
-# 천 단위 쉼표 서식 지정
+# 천 단위 쉼표 서식 적용
 display_df["관객수"] = display_df["관객수"].apply(lambda x: f"{x:,}")
 display_df["누적관객"] = display_df["누적관객"].apply(lambda x: f"{x:,}")
 display_df["스크린수"] = display_df["스크린수"].apply(lambda x: f"{x:,}")
 
-# 💡 st.table을 사용하면 표 제목 클릭에 따른 임의 정렬이 동작하지 않아 순위가 섞이지 않습니다.
-st.table(display_df.set_index("순위"))
+# 💡 index=False로 HTML 변환하여 표 헤더 클릭 클릭에 의한 정렬 변경 방지 및 '순위' 열 표시
+table_html = display_df.to_html(index=False, justify="center")
+
+# 깔끔한 CSS 디자인 적용
+css = """
+<style>
+.stTableContainer table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    margin-top: 10px;
+}
+.stTableContainer th {
+    background-color: var(--background-secondary-color, #f0f2f6);
+    color: var(--text-color, #31333F);
+    font-weight: 600;
+    padding: 12px;
+    border-bottom: 2px solid #ccc;
+    text-align: center !important;
+}
+.stTableContainer td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    text-align: center !important;
+}
+</style>
+"""
+
+st.markdown(f"{css}<div class='stTableContainer'>{table_html}</div>", unsafe_allow_html=True)
